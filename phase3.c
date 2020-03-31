@@ -1,38 +1,38 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <usloss.h>
 #include <phase1.h>
 #include <phase2.h>
 #include <phase3.h>
 #include <usyscall.h>
 #include <libuser.h>
+#include <sys_call.h>
 
 //semaphore 	running;
-/*
- * Function Prototypes.
- */
+
+/* Function Prototypes. */
 int start2(char *);
+extern int start3(char *);
 int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int priority);
 int wait_real(int *status);
+void terminate_real(int exit_status);
 static void nullsys3(sysargs *args_ptr);
 static int spawn_launch(char *arg);
+
+/* Phase 3 Process Table Array */
+proc_struct ProcTable[MAXPROC];
 
 int start2(char *arg)
 {
     int		pid;
     int		status;
     int   i;
-    /*
-     * Check kernel mode here.
-     */
-   // CHECKMODE;
 
-    /*
-     * Data structure initialization as needed...
-     */
+    /* Check kernel mode here. */
 
-    /*
-     * Initializes all entries to the the system vector table to nullsys3.
-     */
+    /* Data structure initialization as needed... */
+
+    /* Initializes all entries to the the system vector table to nullsys3. */
     for(i = 0; i < MAXSYSCALLS; i++)
     {
       sys_vec[i] = nullsys3;
@@ -47,7 +47,17 @@ int start2(char *arg)
     sys_vec[SYS_WAIT]         = (void *) Wait;
     sys_vec[SYS_TERMINATE]    = (void *) Terminate;
 
-
+    /* Initializes the Phase 3 Process Table. */
+    for(i = 0; i < MAXPROC; i++)
+    {
+      ProcTable[i].next_proc = NULL;
+      ProcTable[i].child_ptr = NULL;
+      ProcTable[i].sibling_ptr = NULL;
+      ProcTable[i].pid = INIT_VAL;
+      ProcTable[i].priority = INIT_VAL;
+      ProcTable[i].status = ITEM_EMPTY;
+      ProcTable[i].start_mbox = INIT_VAL;
+    }
 
     /*
      * Create first user-level process and wait for it to finish.
@@ -80,6 +90,8 @@ int start2(char *arg)
     pid = spawn_real("start3", start3, NULL, 4*USLOSS_MIN_STACK, 3);
     pid = wait_real(&status);
 
+    return 0;
+
 } /* start2 */
 
 static void nullsys3(sysargs *args_ptr)
@@ -95,7 +107,7 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
   int my_location;    /* Parent Process' location in the process table. */
   int kid_location;   /* Child Process' location in the process table. */
   int result;
-  u_proc_ptr kidptr, prev_ptr;
+  //u_proc_ptr kidptr, prev_ptr; /* Unused for now */
 
   my_location = getpid() % MAXPROC;
 
@@ -103,6 +115,9 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
   kidpid = fork1(name, spawn_launch, NULL, stack_size, priority);
 
   kid_location = kidpid % MAXPROC;
+
+  /* Temporary */
+  ProcTable[kid_location].start_mbox = 1;
 
   /* 
    * more to check the kidpid and put the new process data to the process table.
@@ -116,10 +131,10 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
 
 static int spawn_launch(char *arg)
 {
-  int parent_location = 0;
+  //int parent_location = 0; /* Unused for now */
   int my_location;
   int result;
-  int (* start_func) (char *);
+  int (* start_func) (char *) = NULL;
   /* add more if I deem it necessary */
 
   my_location = getpid() % MAXPROC;
@@ -140,7 +155,7 @@ static int spawn_launch(char *arg)
     /*add more code if I deem it necessary. */
     /* sets up user mode */
     psr_set(psr_get() & ~PSR_CURRENT_MODE);
-    result = (start_func)(start_arg);
+    result = (start_func)(arg);
     Terminate(result);
   }
   else
@@ -152,3 +167,14 @@ static int spawn_launch(char *arg)
 
   return 0;
 }/* spawn_launch */
+
+void terminate_real(int exit_status)
+{
+  printf("terminate_real(): dummy function.\n");
+}
+
+int wait_real(int *status)
+{
+  printf("wait_real(): dummy function.\n");
+  return 0;
+}
