@@ -13,8 +13,11 @@
 /* Function Prototypes. */
 int start2(char *);
 extern int start3(char *);
+static void spawn(sysargs *args_ptr);
 int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int priority);
+static void wait_handler(sysargs *args_ptr);
 int wait_real(int *status);
+static void terminate(sysargs *args_ptr);
 void terminate_real(int exit_status);
 static void nullsys3(sysargs *args_ptr);
 static int spawn_launch(char *arg);
@@ -43,9 +46,9 @@ int start2(char *arg)
      * appropriate handler function. Leaves the rest as invalid pointing to
      * nullsys3.
      */
-    sys_vec[SYS_SPAWN]        = (void *) Spawn;
-    sys_vec[SYS_WAIT]         = (void *) Wait;
-    sys_vec[SYS_TERMINATE]    = (void *) Terminate;
+    sys_vec[SYS_SPAWN]        = (void *) spawn;
+    sys_vec[SYS_WAIT]         = (void *) wait_handler;
+    sys_vec[SYS_TERMINATE]    = (void *) terminate;
 
     /* Initializes the Phase 3 Process Table. */
     for(i = 0; i < MAXPROC; i++)
@@ -58,7 +61,7 @@ int start2(char *arg)
       ProcTable[i].status = ITEM_EMPTY;
       ProcTable[i].start_mbox = INIT_VAL;
     }
-
+    
     /*
      * Create first user-level process and wait for it to finish.
      * These are lower-case because they are not system calls;
@@ -89,6 +92,7 @@ int start2(char *arg)
      */
     pid = spawn_real("start3", start3, NULL, 4*USLOSS_MIN_STACK, 3);
     pid = wait_real(&status);
+    quit(0);
 
     return 0;
 
@@ -101,23 +105,56 @@ static void nullsys3(sysargs *args_ptr)
   terminate_real(1);
 }/* nullsys3 */
 
+static void spawn(sysargs *args_ptr)
+{
+  int (*func)(char *);
+  char *arg;
+  int stack_size;
+  int kid_pid;
+  char *name;
+  int priority;
+  //more local variables
+
+  if(is_zapped())
+    terminate_real(0);
+
+  func = args_ptr->arg1;
+  arg  = args_ptr->arg2;
+  stack_size = (int) args_ptr->arg3;
+  priority = (int) args_ptr->arg4;
+  name = args_ptr->arg5;
+  //more code to extract system call arguments
+  //exceptional conditions checking and handling
+  //call another function to modularize the code better
+  kid_pid = spawn_real(name, func, arg, stack_size, priority);
+  args_ptr->arg1 = (void *) kid_pid;
+  args_ptr->arg4 = (void *) 0;
+
+  if(is_zapped())
+    terminate_real(0);
+  psr_set(psr_get() & ~PSR_CURRENT_MODE);
+  return;
+}
+
 int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int priority)
 {
   int kidpid;
   int my_location;    /* Parent Process' location in the process table. */
   int kid_location;   /* Child Process' location in the process table. */
   int result;
+  //int (* start_func)(char *arg) = spawn_launch(func);
   //u_proc_ptr kidptr, prev_ptr; /* Unused for now */
 
   my_location = getpid() % MAXPROC;
 
   /* create our child */
   kidpid = fork1(name, spawn_launch, NULL, stack_size, priority);
-
+  
   kid_location = kidpid % MAXPROC;
 
   /* Temporary */
-  ProcTable[kid_location].start_mbox = 1;
+  ProcTable[kid_location].start_mbox = MboxCreate(0,0);
+  ProcTable[kid_location].start_func = func;
 
   /* 
    * more to check the kidpid and put the new process data to the process table.
@@ -134,7 +171,7 @@ static int spawn_launch(char *arg)
   //int parent_location = 0; /* Unused for now */
   int my_location;
   int result;
-  int (* start_func) (char *) = NULL;
+  int (* start_func) (char *);
   /* add more if I deem it necessary */
 
   my_location = getpid() % MAXPROC;
@@ -149,6 +186,8 @@ static int spawn_launch(char *arg)
    */
 
   /* Then get the start function and its arguments. */
+  //start_func = start3;
+  start_func = ProcTable[my_location].start_func;
 
   if(!is_zapped())
   {
@@ -168,13 +207,33 @@ static int spawn_launch(char *arg)
   return 0;
 }/* spawn_launch */
 
+static void terminate(sysargs *args_ptr)
+{
+  int exit_status;
+
+  exit_status = (int) args_ptr->arg1;
+  terminate_real(exit_status);
+}
+
 void terminate_real(int exit_status)
 {
   printf("terminate_real(): dummy function.\n");
+  quit(exit_status);
+}
+
+static void wait_handler(sysargs *args_ptr)
+{
+  int status = 0;
+  args_ptr->arg1 = (void *) wait_real(&status);
+  args_ptr->arg2 = (void *) status;
 }
 
 int wait_real(int *status)
 {
-  printf("wait_real(): dummy function.\n");
-  return 0;
+  int pid;
+  pid = join(status);
+  if(is_zapped())
+    terminate_real(0);
+  psr_set(psr_get() & ~PSR_CURRENT_MODE);
+  return pid;
 }

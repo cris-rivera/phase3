@@ -11,6 +11,7 @@ struct proc_struct {
   int               priority;         /* Process priority. */
   int               status;          /* The current status of the process denoted by enum status_code. */
   int               start_mbox;     /* Mbox ID Number. */
+  int               (*start_func)(char *);
   /* I may need to add more or take some of these off. I do not know yet. */
 };
 
