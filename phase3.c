@@ -217,7 +217,6 @@ static void terminate(sysargs *args_ptr)
 
 void terminate_real(int exit_status)
 {
-  printf("terminate_real(): dummy function.\n");
   quit(exit_status);
 }
 
@@ -234,6 +233,5 @@ int wait_real(int *status)
   pid = join(status);
   if(is_zapped())
     terminate_real(0);
-  psr_set(psr_get() & ~PSR_CURRENT_MODE);
   return pid;
 }
