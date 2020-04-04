@@ -59,7 +59,7 @@ int start2(char *arg)
       ProcTable[i].pid = INIT_VAL;
       ProcTable[i].priority = INIT_VAL;
       ProcTable[i].status = ITEM_EMPTY;
-      ProcTable[i].start_mbox = INIT_VAL;
+      ProcTable[i].start_mbox = 0;
     }
     
     /*
@@ -146,20 +146,25 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
   //u_proc_ptr kidptr, prev_ptr; /* Unused for now */
 
   my_location = getpid() % MAXPROC;
+  //prev_ptr = &ProcTable[my_location];
 
   /* create our child */
   kidpid = fork1(name, spawn_launch, NULL, stack_size, priority);
   
   kid_location = kidpid % MAXPROC;
+  //printf("kidpid: %d\n", kid_location);
+  //kidptr = &ProcTable[kid_location];
 
   /* Temporary */
-  ProcTable[kid_location].start_mbox = MboxCreate(0,0);
+  ProcTable[kid_location].start_mbox = MboxCreate(0,sizeof(int));
   ProcTable[kid_location].start_func = func;
+  ProcTable[kid_location].start_arg = arg;
 
   /* 
    * more to check the kidpid and put the new process data to the process table.
    * Then synchronize with the child using a mailbox: 
    */
+  //printf("is it?\n");
   result = MboxSend(ProcTable[kid_location].start_mbox, &my_location, sizeof(int));
 
   /* More to add. */
@@ -168,13 +173,16 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
 
 static int spawn_launch(char *arg)
 {
-  //int parent_location = 0; /* Unused for now */
-  int my_location;
-  int result;
-  int (* start_func) (char *);
+  //printf("spawn_launch.\n");
+  int     parent_location = 0; /* Unused for now */
+  int     my_location;
+  int     result;
+  int     (* start_func) (char *);
+  char    *start_arg;
   /* add more if I deem it necessary */
 
   my_location = getpid() % MAXPROC;
+  //printf("PID: %d\n", my_location);
 
   /* Sanity Check */
   /* Maintain the process table entry, you can add more */
@@ -184,17 +192,23 @@ static int spawn_launch(char *arg)
    * You should synchronize with the parent here, which function to call?
    * receive?
    */
+  //printf("causes deadlock..\n");
+  MboxReceive(ProcTable[my_location].start_mbox, &parent_location, sizeof(int));
+  //printf("parent: %d\n", parent_location);
 
   /* Then get the start function and its arguments. */
   //start_func = start3;
   start_func = ProcTable[my_location].start_func;
+  start_arg = ProcTable[my_location].start_arg;
 
   if(!is_zapped())
   {
     /*add more code if I deem it necessary. */
     /* sets up user mode */
     psr_set(psr_get() & ~PSR_CURRENT_MODE);
-    result = (start_func)(arg);
+    //printf("if\n");
+    result = (start_func)(start_arg);
+    //printf("result: %d\n", result);
     Terminate(result);
   }
   else
@@ -217,6 +231,9 @@ static void terminate(sysargs *args_ptr)
 
 void terminate_real(int exit_status)
 {
+  //printf("term real\n");
+  int my_location = getpid() % MAXPROC;
+  MboxRelease(ProcTable[my_location].start_mbox);
   quit(exit_status);
 }
 
