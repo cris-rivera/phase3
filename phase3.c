@@ -23,6 +23,7 @@ static void nullsys3(sysargs *args_ptr);
 static int spawn_launch(char *arg);
 static void timeofday(sysargs *args_ptr);
 static void cpu_time(sysargs *args_ptr);
+static void getPID(sysargs *args_ptr);
 
 /* Phase 3 Process Table Array */
 proc_struct ProcTable[MAXPROC];
@@ -53,6 +54,7 @@ int start2(char *arg)
     sys_vec[SYS_TERMINATE]    = (void *) terminate;
     sys_vec[SYS_GETTIMEOFDAY] = (void *) timeofday;
     sys_vec[SYS_CPUTIME]      = (void *) cpu_time;
+    sys_vec[SYS_GETPID]       = (void *) getPID;
 
     /* Initializes the Phase 3 Process Table. */
     for(i = 0; i < MAXPROC; i++)
@@ -272,10 +274,18 @@ int wait_real(int *status)
 static void timeofday(sysargs *args_ptr)
 {
   //printf("get time of day.\n");
-  args_ptr->arg1 = (void *) sys_clock;//readtime;
+  int time = sys_clock();
+  args_ptr->arg1 = (void *) time;//sys_clock;//readtime;
 }
 
 static void cpu_time(sysargs *args_ptr)
 {
-  args_ptr->arg1 = (void *) readtime;
+  int cpu_time = readtime();
+  args_ptr->arg1 = (void *) cpu_time;//readtime;
+}
+
+static void getPID(sysargs *args_ptr)
+{
+  int pid = getpid();
+  args_ptr->arg1 = (void *) pid;
 }
