@@ -22,6 +22,7 @@ void terminate_real(int exit_status);
 static void nullsys3(sysargs *args_ptr);
 static int spawn_launch(char *arg);
 static void timeofday(sysargs *args_ptr);
+static void cpu_time(sysargs *args_ptr);
 
 /* Phase 3 Process Table Array */
 proc_struct ProcTable[MAXPROC];
@@ -51,6 +52,7 @@ int start2(char *arg)
     sys_vec[SYS_WAIT]         = (void *) wait_handler;
     sys_vec[SYS_TERMINATE]    = (void *) terminate;
     sys_vec[SYS_GETTIMEOFDAY] = (void *) timeofday;
+    sys_vec[SYS_CPUTIME]      = (void *) cpu_time;
 
     /* Initializes the Phase 3 Process Table. */
     for(i = 0; i < MAXPROC; i++)
@@ -270,6 +272,10 @@ int wait_real(int *status)
 static void timeofday(sysargs *args_ptr)
 {
   //printf("get time of day.\n");
-  args_ptr->arg1 = (void *) readtime;
+  args_ptr->arg1 = (void *) sys_clock;//readtime;
 }
 
+static void cpu_time(sysargs *args_ptr)
+{
+  args_ptr->arg1 = (void *) readtime;
+}
