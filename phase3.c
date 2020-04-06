@@ -21,6 +21,7 @@ static void terminate(sysargs *args_ptr);
 void terminate_real(int exit_status);
 static void nullsys3(sysargs *args_ptr);
 static int spawn_launch(char *arg);
+static void timeofday(sysargs *args_ptr);
 
 /* Phase 3 Process Table Array */
 proc_struct ProcTable[MAXPROC];
@@ -49,6 +50,7 @@ int start2(char *arg)
     sys_vec[SYS_SPAWN]        = (void *) spawn;
     sys_vec[SYS_WAIT]         = (void *) wait_handler;
     sys_vec[SYS_TERMINATE]    = (void *) terminate;
+    sys_vec[SYS_GETTIMEOFDAY] = (void *) timeofday;
 
     /* Initializes the Phase 3 Process Table. */
     for(i = 0; i < MAXPROC; i++)
@@ -156,7 +158,8 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
   //kidptr = &ProcTable[kid_location];
 
   /* Temporary */
-  ProcTable[kid_location].start_mbox = MboxCreate(0,sizeof(int));
+  if(ProcTable[kid_location].start_mbox == 0)
+    ProcTable[kid_location].start_mbox = MboxCreate(0,sizeof(int));
   ProcTable[kid_location].start_func = func;
   ProcTable[kid_location].start_arg = arg;
 
@@ -187,13 +190,20 @@ static int spawn_launch(char *arg)
   /* Sanity Check */
   /* Maintain the process table entry, you can add more */
   ProcTable[my_location].status = ITEM_IN_USE;
+  if(ProcTable[my_location].start_mbox == 0)
+    ProcTable[my_location].start_mbox = MboxCreate(0,sizeof(int));
+  //ProcTable[my_location].start_mbox = MboxCreate(0,sizeof(int));
 
   /* 
    * You should synchronize with the parent here, which function to call?
    * receive?
    */
   //printf("causes deadlock..\n");
+  //int temp = ProcTable[my_location].start_mbox;
+  //printf("mboxrecv ID before: %d\n", temp);
   MboxReceive(ProcTable[my_location].start_mbox, &parent_location, sizeof(int));
+  //temp = ProcTable[my_location].start_mbox;
+  //printf("mboxrecv ID after: %d\n", temp);
   //printf("parent: %d\n", parent_location);
 
   /* Then get the start function and its arguments. */
@@ -233,7 +243,11 @@ void terminate_real(int exit_status)
 {
   //printf("term real\n");
   int my_location = getpid() % MAXPROC;
+  //int id = ProcTable[my_location].start_mbox;
+  //printf("mbox_id: %d\n", id);
   MboxRelease(ProcTable[my_location].start_mbox);
+  //int temp = MboxRelease(id);
+  //printf("temp: %d\n", temp);
   quit(exit_status);
 }
 
@@ -252,3 +266,10 @@ int wait_real(int *status)
     terminate_real(0);
   return pid;
 }
+
+static void timeofday(sysargs *args_ptr)
+{
+  //printf("get time of day.\n");
+  args_ptr->arg1 = (void *) readtime;
+}
+
