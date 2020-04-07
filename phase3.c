@@ -8,8 +8,6 @@
 #include <libuser.h>
 #include <sys_call.h>
 
-//semaphore 	running;
-
 /* Function Prototypes. */
 int start2(char *);
 extern int start3(char *);
@@ -24,7 +22,6 @@ static int spawn_launch(char *arg);
 static void timeofday(sysargs *args_ptr);
 static void cpu_time(sysargs *args_ptr);
 static void getPID(sysargs *args_ptr);
-//static void print_children();
 static void reset_block();
 
 /* Phase 3 Process Table Array */
@@ -121,7 +118,6 @@ static void spawn(sysargs *args_ptr)
   int kid_pid;
   char *name;
   int priority;
-  //more local variables
 
   if(is_zapped())
     terminate_real(0);
@@ -131,9 +127,7 @@ static void spawn(sysargs *args_ptr)
   stack_size = (int) args_ptr->arg3;
   priority = (int) args_ptr->arg4;
   name = args_ptr->arg5;
-  //more code to extract system call arguments
-  //exceptional conditions checking and handling
-  //call another function to modularize the code better
+
   kid_pid = spawn_real(name, func, arg, stack_size, priority);
   args_ptr->arg1 = (void *) kid_pid;
   args_ptr->arg4 = (void *) 0;
@@ -142,7 +136,7 @@ static void spawn(sysargs *args_ptr)
     terminate_real(0);
   psr_set(psr_get() & ~PSR_CURRENT_MODE);
   return;
-}
+}/* spawn */
 
 int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int priority)
 {
@@ -153,7 +147,6 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
   u_proc_ptr walker = NULL;
   u_proc_ptr parent = NULL;
   u_proc_ptr kid    = NULL;
-  //u_proc_ptr kidptr, prev_ptr; /* Unused for now */
 
   my_location = getpid() % MAXPROC;
   parent = &ProcTable[my_location];
@@ -166,13 +159,6 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
   
   kid_location = kidpid % MAXPROC;
   kid = &ProcTable[kid_location];
-
-  /* Temporary */
-  //if(ProcTable[kid_location].start_mbox == 0)
-    //ProcTable[kid_location].start_mbox = MboxCreate(0,sizeof(int));
-  //ProcTable[kid_location].start_func = func;
-  //ProcTable[kid_location].start_arg = arg;
-  //ProcTable[kid_location].name = name;
   
   kid->name = name;
   kid->pid = kidpid;
@@ -195,14 +181,7 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
           walker = walker->sibling_ptr;
         walker->sibling_ptr = kid;
       }
-    }
-
-  /*
-  printf("\n");
-  printf("Spawn_real list: \n");
-  print_children();
-  printf("\n");
-  */  
+    }  
 
   /* 
    * more to check the kidpid and put the new process data to the process table.
@@ -212,8 +191,6 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
     kid->start_mbox = MboxCreate(0,sizeof(int));
   else
     result = MboxSend(kid->start_mbox, &my_location, sizeof(int));
-
-  /* More to add. */
   return kidpid;
 }/* spawn_real */
 
@@ -230,14 +207,12 @@ static int spawn_launch(char *arg)
   my_location       = 0;
   result            = 0;
   kid               = NULL;
-  /* add more if I deem it necessary */
 
   my_location = getpid() % MAXPROC;
   kid = &ProcTable[my_location];
 
   /* Sanity Check */
-  /* Maintain the process table entry, you can add more */
-  //ProcTable[my_location].status = ITEM_IN_USE;
+  /* Maintain the process table entry. */
   kid->status = ITEM_IN_USE;
   if(kid->start_mbox == 0)
   {
@@ -245,32 +220,11 @@ static int spawn_launch(char *arg)
     MboxReceive(kid->start_mbox, &parent_location, sizeof(int));
   }
 
-  /*if(ProcTable[my_location].start_mbox == 0)
-  {
-    ProcTable[my_location].start_mbox = MboxCreate(0,sizeof(int));
-    MboxReceive(ProcTable[my_location].start_mbox, &parent_location, sizeof(int));
-  }*/
-
-  /* 
-   * You should synchronize with the parent here, which function to call?
-   * receive?
-   */
-  //printf("before recv in %s\n", ProcTable[my_location].name);
-  //MboxReceive(ProcTable[my_location].start_mbox, &parent_location, sizeof(int));
-
-  /* Then get the start function and its arguments. */
-  //start_func = ProcTable[my_location].start_func;
-  //start_arg = ProcTable[my_location].start_arg;
-  //printf("this is it huh.\n");
   start_func = kid->start_func;
   start_arg = kid->start_arg;
-  //if(start_arg == NULL)
-    //printf("to be clear.\n");
-
-  //printf("right before checking zap...\n");
+  
   if(!is_zapped())
   {
-    /*add more code if I deem it necessary. */
     /* sets up user mode */
     psr_set(psr_get() & ~PSR_CURRENT_MODE);
     result = (start_func)(start_arg);
@@ -288,7 +242,6 @@ static int spawn_launch(char *arg)
 
 static void terminate(sysargs *args_ptr)
 {
-  //printf("made into tem.\n\n");
   int           exit_status;
   int           my_location;
   u_proc_ptr    current;
@@ -321,29 +274,11 @@ static void terminate(sysargs *args_ptr)
     }
   }
 
-    /*
-     * Zaps all the children of the current process held via the sibling_ptr
-     * list.
-     */
-    /*
-    while(current->sibling_ptr != NULL)
-    {
-      walker = current->sibling_ptr;
-      next   = walker->sibling_ptr;
-
-      zap(walker->pid);
-
-      if(next != NULL)
-        current->sibling_ptr = next;
-      else
-        current->sibling_ptr = NULL;
-    }*/
-
   /*
    * Terminates once the children have been zapped.
    */
   terminate_real(exit_status);
-}
+}/* terminate */
 
 void terminate_real(int exit_status)
 {
@@ -393,14 +328,14 @@ void terminate_real(int exit_status)
   MboxRelease(current->start_mbox);
   reset_block();
   quit(exit_status);
-}
+}/* terminate_real */
 
 static void wait_handler(sysargs *args_ptr)
 {
   int status = 0;
   args_ptr->arg1 = (void *) wait_real(&status);
   args_ptr->arg2 = (void *) status;
-}
+}/* wait_handler */
 
 int wait_real(int *status)
 {
@@ -409,71 +344,32 @@ int wait_real(int *status)
   if(is_zapped())
     terminate_real(0);
   return pid;
-}
+}/* wait_real */
 
 static void timeofday(sysargs *args_ptr)
 {
   int time = sys_clock();
   args_ptr->arg1 = (void *) time;
-}
+}/* timeofday */
 
 static void cpu_time(sysargs *args_ptr)
 {
   int cpu_time = readtime();
   args_ptr->arg1 = (void *) cpu_time;
-}
+}/* cpu_time */
 
 static void getPID(sysargs *args_ptr)
 {
   int pid = getpid();
   args_ptr->arg1 = (void *) pid;
-}
-
-/*
-static void print_children()
-{
-  int           location;
-  u_proc_ptr    current;
-  u_proc_ptr    walker;
-
-  location = getpid() % MAXPROC;
-  current  = &ProcTable[location];
-  walker   = current->child_ptr;
-
-  printf("%s's Children:\n", current->name);
-  
-  if(walker != NULL)
-    printf("%s->", walker->name);
-  else
-    printf("(NULL)->");
-
-  walker = current->sibling_ptr;
-
-  while(walker != NULL)
-  {
-    printf("%s->", walker->name);
-    walker = walker->sibling_ptr;
-  }
-  printf("\n");
-}*/
+}/* getPID */
 
 static void reset_block()
 {
-  int location = getpid() % MAXPROC;
-  u_proc_ptr proc = &ProcTable[location];
+  int location                    = getpid() % MAXPROC;
+  u_proc_ptr proc                 = &ProcTable[location];
 
-  //proc->next_proc                 = NULL;
-  //proc->parent_ptr                = NULL;
-  //proc->child_ptr                 = NULL;
-  //proc->sibling_ptr               = NULL;
-  //proc->pid                       = 0;
-  //proc->priority                  = 0;
-  //proc->status                    = ITEM_EMPTY;
   proc->start_mbox                = 0;
   proc->start_func                = NULL;
   proc->start_arg                 = NULL;
-  //proc->name                      = NULL;
-}
-
-
-
+}/* reset_block */
