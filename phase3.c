@@ -24,7 +24,8 @@ static int spawn_launch(char *arg);
 static void timeofday(sysargs *args_ptr);
 static void cpu_time(sysargs *args_ptr);
 static void getPID(sysargs *args_ptr);
-static void print_children();
+//static void print_children();
+static void reset_block();
 
 /* Phase 3 Process Table Array */
 proc_struct ProcTable[MAXPROC];
@@ -159,6 +160,9 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
 
   /* create our child */
   kidpid = fork1(name, spawn_launch, NULL, stack_size, priority);
+
+  if(kidpid == -1)
+    return kidpid;
   
   kid_location = kidpid % MAXPROC;
   kid = &ProcTable[kid_location];
@@ -257,8 +261,11 @@ static int spawn_launch(char *arg)
   /* Then get the start function and its arguments. */
   //start_func = ProcTable[my_location].start_func;
   //start_arg = ProcTable[my_location].start_arg;
+  //printf("this is it huh.\n");
   start_func = kid->start_func;
   start_arg = kid->start_arg;
+  //if(start_arg == NULL)
+    //printf("to be clear.\n");
 
   //printf("right before checking zap...\n");
   if(!is_zapped())
@@ -384,7 +391,7 @@ void terminate_real(int exit_status)
   }
 
   MboxRelease(current->start_mbox);
-  
+  reset_block();
   quit(exit_status);
 }
 
@@ -422,6 +429,7 @@ static void getPID(sysargs *args_ptr)
   args_ptr->arg1 = (void *) pid;
 }
 
+/*
 static void print_children()
 {
   int           location;
@@ -447,6 +455,25 @@ static void print_children()
     walker = walker->sibling_ptr;
   }
   printf("\n");
+}*/
+
+static void reset_block()
+{
+  int location = getpid() % MAXPROC;
+  u_proc_ptr proc = &ProcTable[location];
+
+  //proc->next_proc                 = NULL;
+  //proc->parent_ptr                = NULL;
+  //proc->child_ptr                 = NULL;
+  //proc->sibling_ptr               = NULL;
+  //proc->pid                       = 0;
+  //proc->priority                  = 0;
+  //proc->status                    = ITEM_EMPTY;
+  proc->start_mbox                = 0;
+  proc->start_func                = NULL;
+  proc->start_arg                 = NULL;
+  //proc->name                      = NULL;
 }
+
 
 
