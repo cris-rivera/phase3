@@ -181,10 +181,10 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
     parent->child_ptr = kid;
   else
     {
-      walker = parent->sibling_ptr;
+      walker = parent->child_ptr;
 
-      if(walker == NULL)
-        parent->sibling_ptr = kid;
+      if(walker->sibling_ptr == NULL)
+        walker->sibling_ptr = kid;
       else
       {
         while(walker->sibling_ptr != NULL)
@@ -297,29 +297,40 @@ static void terminate(sysargs *args_ptr)
   /*
    * Zaps the first child of the current process.
    */
-  while(current->child_ptr != NULL)
+  if(current->child_ptr != NULL)
   {
-    walker = current->child_ptr;
-    zap(walker->pid);
-    current->child_ptr = NULL;
+    while(current->child_ptr != NULL)
+    {
+      walker = current->child_ptr;
+      zap(walker->pid);
+
+      if(walker->sibling_ptr != NULL)
+      {
+        current->child_ptr = walker->sibling_ptr;
+        walker->sibling_ptr = NULL;
+      }
+      else
+        current->child_ptr = NULL;
+    }
   }
 
-  /*
-   * Zaps all the children of the current process held via the sibling_ptr
-   * list.
-   */
-  while(current->sibling_ptr != NULL)
-  {
-    walker = current->sibling_ptr;
-    next   = walker->sibling_ptr;
+    /*
+     * Zaps all the children of the current process held via the sibling_ptr
+     * list.
+     */
+    /*
+    while(current->sibling_ptr != NULL)
+    {
+      walker = current->sibling_ptr;
+      next   = walker->sibling_ptr;
 
-    zap(walker->pid);
+      zap(walker->pid);
 
-    if(next != NULL)
-      current->sibling_ptr = next;
-    else
-      current->sibling_ptr = NULL;
-  }
+      if(next != NULL)
+        current->sibling_ptr = next;
+      else
+        current->sibling_ptr = NULL;
+    }*/
 
   /*
    * Terminates once the children have been zapped.
