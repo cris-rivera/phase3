@@ -1,3 +1,13 @@
+/* ------------------------------------------------------------------------
+ * phase3.c
+ *
+ * University of Arizona South
+ * Computer Science 452
+ *
+ * Author: Cristian Rivera
+ * Group: Cristian Rivera (Solo)
+ *
+ * ------------------------------------------------------------------------ */
 #include <stdlib.h>
 #include <stdio.h>
 #include <usloss.h>
@@ -8,7 +18,7 @@
 #include <libuser.h>
 #include <sys_call.h>
 
-/* Function Prototypes. */
+/* ------------------------- Prototypes ----------------------------------- */
 int start2(char *);
 extern int start3(char *);
 static void spawn(sysargs *args_ptr);
@@ -24,9 +34,20 @@ static void cpu_time(sysargs *args_ptr);
 static void getPID(sysargs *args_ptr);
 static void reset_block();
 
+/* ----------------- Phase 3 Process Table Array -------------------------- */
 /* Phase 3 Process Table Array */
 proc_struct ProcTable[MAXPROC];
 
+/* -------------------------- Functions ----------------------------------- */
+
+/* ------------------------------------------------------------------------
+    Name - start2
+    Purpose - Initializes phase 3 process table and the interrupt vector.
+              Starts start3.
+    Parameters - one, default arg passed by fork1, not used here.
+    Returns - one to indicate normal quit.
+    Side Effects - none
+    ----------------------------------------------------------------------- */
 int start2(char *arg)
 {
     int		pid;
@@ -34,8 +55,6 @@ int start2(char *arg)
     int   i;
 
     /* Check kernel mode here. */
-
-    /* Data structure initialization as needed... */
 
     /* Initializes all entries to the the system vector table to nullsys3. */
     for(i = 0; i < MAXSYSCALLS; i++)
@@ -103,6 +122,13 @@ int start2(char *arg)
 
 } /* start2 */
 
+/* ------------------------------------------------------------------------
+    Name - nullsys3
+    Purpose - Used to represent and invalid system call.
+    Parameters - one, system arguments structure pointer. Not used. 
+    Returns - none
+    Side Effects - terminates calling process
+    ----------------------------------------------------------------------- */
 static void nullsys3(sysargs *args_ptr)
 {
   printf("nullsys3(): Invalid syscall %d\n", args_ptr->number);
@@ -110,6 +136,16 @@ static void nullsys3(sysargs *args_ptr)
   terminate_real(1);
 }/* nullsys3 */
 
+/* ------------------------------------------------------------------------
+    Name - spawn
+    Purpose - Spawn handler function. Sets system call arguments structure
+              to their appropriate values. Calls spawn_real to actually
+              spawn a process.
+    Parameters - one, system arguments structure pointer.
+    Returns - none
+    Side Effects - terminates calling process if zapped. Changes process to
+                   User Mode. 
+    ----------------------------------------------------------------------- */
 static void spawn(sysargs *args_ptr)
 {
   int (*func)(char *);
@@ -138,6 +174,21 @@ static void spawn(sysargs *args_ptr)
   return;
 }/* spawn */
 
+/* ------------------------------------------------------------------------
+     Name - spawn_real
+     Purpose - Spawns process by calling fork1, but with spawn_launch
+               wrapper function. Maintains Parent-Child relationship.
+               Maintains the new child's process table. Blocks/unblocks
+               child in order to synchronize execution and pass function
+               pointer and function argument to the child process. 
+     Parameters - five, the function's name, a function pointer to the 
+                  process' start function, a char pointer to the argument
+                  for the start function parameter, the size of the process
+                  stack, and the priority of the process.
+     Returns - one, the PID of the newly spawned child process. -1 if process
+               failed to fork.
+     Side Effects - none
+     ----------------------------------------------------------------------- */
 int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int priority)
 {
   int kidpid;
@@ -194,6 +245,18 @@ int spawn_real(char *name, int (*func)(char *), char *arg, int stack_size, int p
   return kidpid;
 }/* spawn_real */
 
+/* ------------------------------------------------------------------------
+      Name - spawn_launch
+      Purpose - Spawn Wrapper function which takes the starting function 
+                for the newly forked function, and the starting argument for 
+                the starting function and places it on the Process Table 
+                entry for the calling function. It then places the current
+                process in user mode and executes the starting function.
+      Parameters - one, character pointer which is always NULL.
+      Returns - one, zero which never executes.
+      Side Effects - terminate is called after the starting function
+                     concludes termination.
+      ----------------------------------------------------------------------- */
 static int spawn_launch(char *arg)
 {
   int         parent_location;
@@ -240,6 +303,15 @@ static int spawn_launch(char *arg)
   return 0;
 }/* spawn_launch */
 
+/* ------------------------------------------------------------------------
+      Name - terminate
+      Purpose - Zapps all the children of the calling process, then calls
+                terminate_real in order to fully terminate the calling
+                process. 
+      Parameters - one, pointer to the system call arguments structure.
+      Returns - none
+      Side Effects - none
+      ----------------------------------------------------------------------- */
 static void terminate(sysargs *args_ptr)
 {
   int           exit_status;
@@ -280,6 +352,15 @@ static void terminate(sysargs *args_ptr)
   terminate_real(exit_status);
 }/* terminate */
 
+/* ------------------------------------------------------------------------
+      Name - terminate_real
+      Purpose - Allows calling process to change parent process' children 
+                list by taking itself out of the list, and adjusting list 
+                as required. Calls quit after adjustment has been made.
+      Parameters - one, exit status from which terminate was called.
+      Returns - none
+      Side Effects - none
+      ----------------------------------------------------------------------- */
 void terminate_real(int exit_status)
 {
   int           my_location;
@@ -296,6 +377,10 @@ void terminate_real(int exit_status)
   prev          = NULL;
   next          = NULL;
   
+  /* Adjusts the parent's child list by deleting calling process then adjusting
+   * the rest of the children as needed depending on the position of the
+   * calling process in the parent process' child list.
+   */
   if(parent->child_ptr != NULL)
   {
     if(parent->child_ptr->pid == current->pid)
@@ -330,6 +415,15 @@ void terminate_real(int exit_status)
   quit(exit_status);
 }/* terminate_real */
 
+/* ------------------------------------------------------------------------
+      Name - wait_handler
+      Purpose - Handler function for the wait system call. Calls to wait real
+                to initiate wait functionality, then places the returned PID
+                and the exit status into the system call argument structure.
+      Parameters - one, pointer to system call argument structure.
+      Returns - none
+      Side Effects - none
+      ----------------------------------------------------------------------- */
 static void wait_handler(sysargs *args_ptr)
 {
   int status = 0;
@@ -337,6 +431,16 @@ static void wait_handler(sysargs *args_ptr)
   args_ptr->arg2 = (void *) status;
 }/* wait_handler */
 
+/* ------------------------------------------------------------------------
+      Name - wait_real
+      Purpose - Initiates a join with the child process the calling process
+                is to wait on. Join is passed the status code passed in as 
+                a parameter.
+      Parameters - one, the status code of the wait call.
+      Returns - returns the PID of the child that quit, -2 if there are no
+                children, and -1 if the process was zapped while waiting.
+      Side Effects - none
+      ----------------------------------------------------------------------- */
 int wait_real(int *status)
 {
   int pid;
@@ -346,24 +450,55 @@ int wait_real(int *status)
   return pid;
 }/* wait_real */
 
+/* ------------------------------------------------------------------------
+      Name - timeofday
+      Purpose - Gets the current time from the system clock, then places 
+                that time in the system call argument structure.
+      Parameters - one, pointer to system call argument structure.
+      Returns - none
+      Side Effects - none
+      ----------------------------------------------------------------------- */
 static void timeofday(sysargs *args_ptr)
 {
   int time = sys_clock();
   args_ptr->arg1 = (void *) time;
 }/* timeofday */
 
+/* ------------------------------------------------------------------------
+      Name - cpu_time
+      Purpose - Gets the amount of time the current process has been running
+                then places it into the system call argument struture.
+      Parameters - one, system call argument structure pointer.
+      Returns - none
+      Side Effects - none
+      ----------------------------------------------------------------------- */
 static void cpu_time(sysargs *args_ptr)
 {
   int cpu_time = readtime();
   args_ptr->arg1 = (void *) cpu_time;
 }/* cpu_time */
 
+/* ------------------------------------------------------------------------
+      Name - getPID
+      Purpose - Places the PID of the current running process into the system
+                call argument structure, which will return the PID. 
+      Parameters - one, system call argument structure pointer
+      Returns - none
+      Side Effects - none
+      ----------------------------------------------------------------------- */
 static void getPID(sysargs *args_ptr)
 {
   int pid = getpid();
   args_ptr->arg1 = (void *) pid;
 }/* getPID */
 
+/* ------------------------------------------------------------------------
+     Name - reset_block
+     Purpose - Resets the Process Table Block to initial values.
+     Parameters - none
+     Returns - none
+     Side Effects - none
+     ----------------------------------------------------------------------- */
 static void reset_block()
 {
   int location                    = getpid() % MAXPROC;
